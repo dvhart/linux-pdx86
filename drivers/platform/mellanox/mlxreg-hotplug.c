@@ -236,12 +236,12 @@ mlxreg_hotplug_work_helper(struct mlxreg_hotplug_priv_data *priv,
 	ret = regmap_write(priv->regmap, item->reg + MLXREG_HOTPLUG_MASK_OFF,
 			   0);
 	if (ret)
-		goto access_error;
+		goto out;
 
 	/* Read status. */
 	ret = regmap_read(priv->regmap, item->reg, &regval);
 	if (ret)
-		goto access_error;
+		goto out;
 
 	/* Set asserted bits and save last status. */
 	regval &= item->mask;
@@ -267,18 +267,15 @@ mlxreg_hotplug_work_helper(struct mlxreg_hotplug_priv_data *priv,
 	ret = regmap_write(priv->regmap, item->reg + MLXREG_HOTPLUG_EVENT_OFF,
 			   0);
 	if (ret)
-		goto access_error;
+		goto out;
 
 	/* Unmask event. */
 	ret = regmap_write(priv->regmap, item->reg + MLXREG_HOTPLUG_MASK_OFF,
 			   item->mask);
+
+ out:
 	if (ret)
-		goto access_error;
-
-	return;
-
-access_error:
-	dev_err(priv->dev, "Failed to complete workqueue.\n");
+		dev_err(priv->dev, "Failed to complete workqueue.\n");
 }
 
 static void
@@ -294,12 +291,12 @@ mlxreg_hotplug_health_work_helper(struct mlxreg_hotplug_priv_data *priv,
 		ret = regmap_write(priv->regmap, data->reg +
 				   MLXREG_HOTPLUG_MASK_OFF, 0);
 		if (ret)
-			goto access_error;
+			goto out;
 
 		/* Read status. */
 		ret = regmap_read(priv->regmap, data->reg, &regval);
 		if (ret)
-			goto access_error;
+			goto out;
 
 		regval &= data->mask;
 		item->cache = regval;
@@ -321,19 +318,18 @@ mlxreg_hotplug_health_work_helper(struct mlxreg_hotplug_priv_data *priv,
 		ret = regmap_write(priv->regmap, data->reg +
 				   MLXREG_HOTPLUG_EVENT_OFF, 0);
 		if (ret)
-			goto access_error;
+			goto out;
 
 		/* Unmask event. */
 		ret = regmap_write(priv->regmap, data->reg +
 				   MLXREG_HOTPLUG_MASK_OFF, data->mask);
 		if (ret)
-			goto access_error;
+			goto out;
 	}
 
-	return;
-
-access_error:
-	dev_err(priv->dev, "Failed to complete workqueue.\n");
+ out:
+	if (ret)
+		dev_err(priv->dev, "Failed to complete workqueue.\n");
 }
 
 /*
@@ -380,12 +376,12 @@ static void mlxreg_hotplug_work_handler(struct work_struct *work)
 	ret = regmap_write(priv->regmap, pdata->cell +
 			   MLXREG_HOTPLUG_AGGR_MASK_OFF, 0);
 	if (ret < 0)
-		goto access_error;
+		goto out;
 
 	/* Read aggregation status. */
 	ret = regmap_read(priv->regmap, pdata->cell, &regval);
 	if (ret)
-		goto access_error;
+		goto out;
 
 	regval &= pdata->mask;
 	aggr_asserted = priv->aggr_cache ^ regval;
@@ -425,13 +421,10 @@ static void mlxreg_hotplug_work_handler(struct work_struct *work)
 	/* Unmask aggregation event (no need acknowledge). */
 	ret = regmap_write(priv->regmap, pdata->cell +
 			   MLXREG_HOTPLUG_AGGR_MASK_OFF, pdata->mask);
+
+ out:
 	if (ret)
-		goto access_error;
-
-	return;
-
-access_error:
-	dev_err(priv->dev, "Failed to complete workqueue.\n");
+		dev_err(priv->dev, "Failed to complete workqueue.\n");
 }
 
 static int mlxreg_hotplug_set_irq(struct mlxreg_hotplug_priv_data *priv)
@@ -449,7 +442,7 @@ static int mlxreg_hotplug_set_irq(struct mlxreg_hotplug_priv_data *priv)
 		ret = regmap_write(priv->regmap, item->reg +
 				   MLXREG_HOTPLUG_EVENT_OFF, 0);
 		if (ret)
-			goto access_error;
+			goto out;
 
 		/* Set group initial status as mask and unmask group event. */
 		if (item->inversed) {
@@ -458,7 +451,7 @@ static int mlxreg_hotplug_set_irq(struct mlxreg_hotplug_priv_data *priv)
 					   MLXREG_HOTPLUG_MASK_OFF,
 					   item->mask);
 			if (ret)
-				goto access_error;
+				goto out;
 		}
 	}
 
@@ -466,7 +459,7 @@ static int mlxreg_hotplug_set_irq(struct mlxreg_hotplug_priv_data *priv)
 	ret = regmap_write(priv->regmap, pdata->cell +
 			   MLXREG_HOTPLUG_AGGR_MASK_OFF, pdata->mask);
 	if (ret)
-		goto access_error;
+		goto out;
 
 	/* Keep low aggregation initial status as zero and unmask events. */
 	if (pdata->cell_low) {
@@ -474,21 +467,16 @@ static int mlxreg_hotplug_set_irq(struct mlxreg_hotplug_priv_data *priv)
 				   MLXREG_HOTPLUG_AGGR_MASK_OFF,
 				   pdata->mask_low);
 		if (ret)
-			goto access_error;
+			goto out;
 	}
 
 	/* Invoke work handler for initializing hot plug devices setting. */
 	mlxreg_hotplug_work_handler(&priv->dwork_irq.work);
 
+ out:
+	if (ret)
+		dev_err(priv->dev, "Failed to set interrupts.\n");
 	enable_irq(priv->irq);
-
-	return 0;
-
-access_error:
-	dev_err(priv->dev, "Failed to set interrupts.\n");
-
-	enable_irq(priv->irq);
-
 	return ret;
 }
 
