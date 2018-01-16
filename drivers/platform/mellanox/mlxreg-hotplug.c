@@ -361,17 +361,18 @@ mlxreg_hotplug_health_work_helper(struct mlxreg_hotplug_priv_data *priv,
  */
 static void mlxreg_hotplug_work_handler(struct work_struct *work)
 {
-	struct mlxreg_hotplug_priv_data *priv = container_of(work,
-			struct mlxreg_hotplug_priv_data, dwork_irq.work);
 	struct mlxreg_core_hotplug_platform_data *pdata;
+	struct mlxreg_hotplug_priv_data *priv;
 	struct mlxreg_core_item *item;
-	unsigned long flags;
 	u32 regval, aggr_asserted;
-	int i;
-	int ret;
+	unsigned long flags;
+	int i, ret;
 
+	priv = container_of(work, struct mlxreg_hotplug_priv_data,
+			    dwork_irq.work);
 	pdata = dev_get_platdata(&priv->pdev->dev);
 	item = pdata->items;
+
 	/* Mask aggregation event. */
 	ret = regmap_write(priv->regmap, pdata->cell +
 			   MLXREG_HOTPLUG_AGGR_MASK_OFF, 0);
@@ -431,8 +432,7 @@ static int mlxreg_hotplug_set_irq(struct mlxreg_hotplug_priv_data *priv)
 {
 	struct mlxreg_core_hotplug_platform_data *pdata;
 	struct mlxreg_core_item *item;
-	int i;
-	int ret;
+	int i, ret;
 
 	pdata = dev_get_platdata(&priv->pdev->dev);
 	item = pdata->items;
@@ -520,8 +520,9 @@ static void mlxreg_hotplug_unset_irq(struct mlxreg_hotplug_priv_data *priv)
 
 static irqreturn_t mlxreg_hotplug_irq_handler(int irq, void *dev)
 {
-	struct mlxreg_hotplug_priv_data *priv =
-				(struct mlxreg_hotplug_priv_data *)dev;
+	struct mlxreg_hotplug_priv_data *priv;
+
+	priv = (struct mlxreg_hotplug_priv_data *)dev;
 
 	/* Schedule work task for immediate execution.*/
 	schedule_delayed_work(&priv->dwork_irq, 0);
